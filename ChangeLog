@@ -1,13 +1,13 @@
-2009-06-09  H.Merijn Brand (0.24_01)
+2009-06-10  H.Merijn Brand (0.24_02)
 
     * Raised minimum perl version to 5.005_03
     * Requires Text::CSV_XS 0.43 (needs eof () method and
-      error_diag ())
+      error_diag ()) (RT#33764)
     * Code cleanup (perlcritic, style, layout)
     * Implemented f_ext
     * Implemented f_schema (in DBD::File)
     * Split csv handles for input (no eol default) and
-      output (default "\r\n")
+      output (default "\r\n") (RT#33767)
     * Updated info URL's
     * Cleaned up tests
     * Tests now use Test::More
@@ -18,6 +18,7 @@
     * Add csv_* to pass to the parser
     * Improved error handling and reporting
     * Table names case sensitiveness
+    * Implemented raw_header (RT#44583)
 
 2005-08-10  Jeff Zucker <jzuckerATcpan.org> (0.23)
 
