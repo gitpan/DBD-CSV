@@ -1,4 +1,4 @@
-#! perl
+#!/pro/bin/perl
 #
 #   DBD::CSV - A DBI driver for CSV and similar structured files
 #
@@ -34,7 +34,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.24_02";
+$VERSION  = "0.25";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
