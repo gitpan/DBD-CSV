@@ -4,6 +4,7 @@ use strict;
 $^W = 1;
 
 use Test::More "no_plan";
+use DBI qw(:sql_types);
 do "t/lib.pl";
 
 my ($rt, %input, %desc);
@@ -115,12 +116,8 @@ while (<DATA>) {
 	"JOIN   $tbl[1][0]",
 	"USING  (id)")),					"join 1 2");
 
-    TODO: {
-	local $TODO = "NULL handling not finished yet";
-
-	is_deeply ($row, { id => 8,
-	    one => 1, two => undef, thre => 3, four => undef }, "content");
-	}
+    is_deeply ($row, { id => 8,
+	one => 1, two => undef, thre => 3, four => undef }, "content");
 
     ok ($dbh->do ("drop table $_"),	"drop table") for map { $_->[0] } @tbl;
     ok ($dbh->disconnect,					"disconnect");
@@ -194,12 +191,35 @@ while (<DATA>) {
     ok ($sth->finish,				"finish");
 
     open my $fh, "<", DbFile ("RT$rt.csv");
+    binmode $fh;
     is (scalar <$fh>, qq{name,id\r\n},		"Field names");
     is (scalar <$fh>, qq{Tim,1\r\n},		"Record 1");
     is (scalar <$fh>, qq{Tux,2\r\n},		"Record 2");
     is (scalar <$fh>, qq{,3\r\n},		"Record 3");
     is (scalar <$fh>, undef,			"EOF");
     close $fh;
+
+    ok ($dbh->do ("drop table RT$rt"),		"drop");
+    ok ($dbh->disconnect,			"disconnect");
+    }
+
+{   $rt = 51090;
+    ok ($rt, "RT-$rt - $desc{$rt}");
+    my @lines = @{$input{$rt}};
+    my @dbitp = ( SQL_INTEGER, SQL_LONGVARCHAR, SQL_NUMERIC );
+    my @csvtp = ( 1, 0, 2 );
+
+    open  FILE, ">output/rt$rt";
+    print FILE @lines;
+    close FILE;
+
+    ok (my $dbh = Connect (),					"connect");
+    ok (my $sth = $dbh->prepare ("select * from rt$rt"),	"prepare");
+    $dbh->{csv_tables}{rt51090}{types} = [ @dbitp ];
+    is_deeply ($dbh->{csv_tables}{rt51090}{types}, \@dbitp,	"set types (@dbitp)");
+
+    ok ($sth->execute (),					"execute");
+    is_deeply ($dbh->{csv_tables}{rt51090}{types}, \@csvtp,	"get types (@csvtp)");
 
     ok ($dbh->do ("drop table RT$rt"),		"drop");
     ok ($dbh->disconnect,			"disconnect");
@@ -235,3 +255,5 @@ c_tab,s_tab
 c.tab,"s,tab"
 1,ok
 «46627» - DBD::File is damaged now
+«51090» - Report a bug in DBD-CSV
+integer,longvarchar,numeric

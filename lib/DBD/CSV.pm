@@ -34,7 +34,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.25";
+$VERSION  = "0.26";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
@@ -204,7 +204,7 @@ sub open_table
 	    my $t = [];
 	    for (@{$types}) {
 		$_ = $_
-		    ? $DBD::CSV::CSV_TYPES[$_ + 6] || Text::CSV_XS::PV ()
+		    ? $DBD::CSV::dr::CSV_TYPES[$_ + 6] || Text::CSV_XS::PV ()
 		    : Text::CSV_XS::PV();
 		push @$t, $_;
 		}
@@ -219,7 +219,7 @@ sub open_table
 	    if ($skipRows--) {
 		$array = $tbl->fetch_row ($data) or croak "Missing first row";
 		unless ($self->{raw_header}) {
-		    s/[-\x00-\x20'":;.,\/\\]/_/g for @$array;
+		    s/\W/_/g for @$array;
 		    }
 		$tbl->{col_names} = $array;
 		while ($skipRows--) {
@@ -268,6 +268,8 @@ sub fetch_row
 	my @diag = $csv->error_diag;
 	croak "Error $diag[0] while reading file $self->{file}: $diag[1]";
 	}
+    @$fields < @{$self->{col_names}} and
+	push @$fields, (undef) x (@{$self->{col_names}} - @$fields);
     $self->{row} = (@$fields ? $fields : undef);
     } # fetch_row
 
