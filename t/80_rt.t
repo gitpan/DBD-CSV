@@ -190,7 +190,7 @@ while (<DATA>) {
     ok ($sth->execute ("Tux", 2),		"update");
     ok ($sth->finish,				"finish");
 
-    open my $fh, "<", DbFile ("RT$rt.csv");
+    open my $fh, "<".DbFile ("RT$rt.csv");
     binmode $fh;
     is (scalar <$fh>, qq{name,id\r\n},		"Field names");
     is (scalar <$fh>, qq{Tim,1\r\n},		"Record 1");
@@ -213,7 +213,7 @@ while (<DATA>) {
     print FILE @lines;
     close FILE;
 
-    ok (my $dbh = Connect (),					"connect");
+    ok (my $dbh = Connect ({ f_lock => 0 }),					"connect");
     ok (my $sth = $dbh->prepare ("select * from rt$rt"),	"prepare");
     $dbh->{csv_tables}{rt51090}{types} = [ @dbitp ];
     is_deeply ($dbh->{csv_tables}{rt51090}{types}, \@dbitp,	"set types (@dbitp)");

@@ -9,7 +9,7 @@
 #   The original author is Jochen Wiedmann.
 #   Then maintained by Jeff Zucker
 #
-#   Copyright (C) 2009 by H.Merijn Brand
+#   Copyright (C) 2010 by H.Merijn Brand
 #   Copyright (C) 2004 by Jeff Zucker
 #   Copyright (C) 1998 by Jochen Wiedmann
 #
@@ -34,7 +34,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.26";
+$VERSION  = "0.27";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
@@ -394,7 +394,7 @@ on installing in your own directories. L<ExtUtils::MakeMaker>.
 
 All SQL processing for DBD::CSV is done by the L<SQL::Statement> module.
 Features include joins, aliases, built-in and user-defined functions,
-and more.  See L<SQL::Statement::Sytax> for a description of the SQL
+and more.  See L<SQL::Statement::Syntax> for a description of the SQL
 syntax supported in DBD::CSV.
 
 Table names are case insensitive unless quoted.
@@ -703,7 +703,7 @@ the I<csv_tables> attribute.
 
 With this option set, all new statement handles will set C<always_quote>
 and C<blank_is_undef> in the CSV parser and writer, so it knows how to
-distinquish between the empty string and C<undef> or C<NULL>. You cannot
+distinguish between the empty string and C<undef> or C<NULL>. You cannot
 reset it with a false value. You can pass it to connect, or set it later:
 
   $dbh = DBI->connect ("dbi:CSV:", "", "", { csv_null => 1 });
@@ -758,7 +758,7 @@ The difference is that they work on a per-table base.
 =item skip_first_row
 
 By default DBD::CSV assumes that column names are stored in the first row
-of the CSV file and sanitzes them (see C<raw_header> below). If this is
+of the CSV file and sanitizes them (see C<raw_header> below). If this is
 not the case, you can supply an array ref of table names with the
 I<col_names> attribute. In that case the attribute I<skip_first_row> will
 be set to FALSE.
@@ -934,7 +934,7 @@ Previous maintainer was Jeff Zucker
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009      by H.Merijn Brand
+Copyright (C) 2009-2010 by H.Merijn Brand
 Copyright (C) 2004-2009 by Jeff Zucker
 Copyright (C) 1998-2004 by Jochen Wiedmann
 
