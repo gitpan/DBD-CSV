@@ -34,7 +34,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.27";
+$VERSION  = "0.28";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
@@ -125,22 +125,23 @@ sub FETCH
 
     # Being a bit dirty here, as SQL::Statement::Structure does not offer
     # me an interface to the data I want
-    my $struct = $sth->{f_stmt}{struct} || {};
-    my @cols = @{ $struct->{column_names} || [] };
+    my $struct   = $sth->{f_stmt}{struct} || {};
+    my @coldefs  = @{ $struct->{column_defs} || [] };
+    my @colnames = map { $_->{name} || $_->{value} } @coldefs;
 
     $attr eq "TYPE"      and
-	return [ map { $struct->{column_defs}{$_}{data_type}   || "CHAR" }
-		    @cols ];
+	return [ map { $struct->{table_defs}->{columns}{$_}{data_type}   || "CHAR" }
+		    @colnames ];
 
     $attr eq "PRECISION" and
-	return [ map { $struct->{column_defs}{$_}{data_length} || 0 }
-		    @cols ];
+	return [ map { $struct->{table_defs}->{columns}{$_}{data_length} || 0 }
+		    @colnames ];
 
     $attr eq "NULLABLE"  and
 	return [ map { ( grep m/^NOT NULL$/ =>
-		    @{ $struct->{column_defs}{$_}{constraints} || [] } )
+		    @{ $struct->{table_defs}->{columns}{$_}{constraints} || [] } )
 		       ? 0 : 1 }
-		    @cols ];
+		    @colnames ];
 
     return $sth->SUPER::FETCH ($attr);
     } # FETCH

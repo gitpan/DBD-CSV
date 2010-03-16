@@ -34,7 +34,7 @@ my %wm = (
     PREREQ_PM    => {
 	"DBI"            => 1.00,
 	"Text::CSV_XS"   => 0.64,
-	"SQL::Statement" => 1.22,
+	"SQL::Statement" => 1.25,
 	"DBD::File"      => 0.37,
 	"Test::More"     => 0,
 	},
@@ -56,7 +56,7 @@ package MY;
 
 sub postamble
 {
-    my $min_vsn = ($] >= 5.010 && -d "xt" && -d "tmp" && ($ENV{AUTOMATED_TESTING} || 0) != 1)
+    my $min_vsn = ($] >= 5.010 && -d "xt" && ($ENV{AUTOMATED_TESTING} || 0) != 1)
 	? join "\n" =>
 	    'test ::',
 	    '	-@env TEST_FILES="xt/*.t" make -e test_dynamic',
