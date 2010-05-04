@@ -1,3 +1,12 @@
+2010-05-03  0.29  H.Merijn Brand
+
+    * Fix git URL in META.yml
+    * Add empty CLONE method to prevent warning when cloning threads
+    * Minimum perl 5.8.1
+    * Minimum Text::CSV_XS 0.71
+    * Support for f_encoding (requires DBI-1.611)
+    * Documentation updates
+
 2010-03-16  0.28  H.Merijn Brand
 
     * Remove t/00_minimumversion.t from distribution
