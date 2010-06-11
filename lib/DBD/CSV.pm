@@ -34,12 +34,12 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.29";
+$VERSION  = "0.29_01";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
 $sqlstate = "";         # holds error state  for DBI::state
-$drh      = undef;	# holds driver handle once initialised
+$drh      = undef;	# holds driver handle once initialized
 
 sub CLONE		# empty method: prevent warnings when threads are cloned
 {
@@ -83,8 +83,8 @@ sub connect
 {
     my ($drh, $dbname, $user, $auth, $attr) = @_;
     my $dbh = $drh->DBD::File::dr::connect ($dbname, $user, $auth, $attr);
-    $dbh->{csv_tables} ||= {};
-    $dbh->{Active}       = 1;
+    $dbh->{f_meta} ||= {};
+    $dbh->{Active}   = 1;
     $dbh;
     } # connect
 
@@ -98,20 +98,40 @@ $DBD::CSV::db::imp_data_size = 0;
 
 @DBD::CSV::db::ISA = qw( DBD::File::db );
 
-sub csv_cache_sql_parser_object
+sub set_versions
+{
+    my $this = shift;
+    $this->{csv_version} = $DBD::CSV::VERSION;
+    return $this->SUPER::set_versions ();
+    } # set_versions
+
+if ($DBD::File::VERSION <= 0.38) {
+    # Map csv_tables to f_meta.
+    # Not absolutely needed, but otherwise I have to write two test suites
+    *STORE = sub {
+	my ($self, @attr) = @_;
+	@attr && $attr[0] eq "csv_tables" and $attr[0] = "f_meta";
+	$self->SUPER::STORE (@attr);
+	}; # STORE
+
+    *FETCH = sub {
+	my ($self, @attr) = @_;
+	@attr && $attr[0] eq "csv_tables" and $attr[0] = "f_meta";
+	$self->SUPER::FETCH (@attr);
+	}; # FETCH
+    }
+
+sub init_valid_attributes
 {
     my $dbh = shift;
-    my $parser = {
-	dialect    => "CSV",
-	RaiseError => $dbh->FETCH ("RaiseError"),
-	PrintError => $dbh->FETCH ("PrintError"),
-        };
-    my $sql_flags  =  $dbh->FETCH ("csv_sql") || {};
-    %$parser = (%$parser, %$sql_flags);
-     $parser = SQL::Parser->new ($parser->{dialect}, $parser);
-    $dbh->{csv_sql_parser_object} = $parser;
-    return $parser;
-    } # csv_cache_sql_parser_object
+
+    # $dbh->{csv_valid_attrs} = {};
+    # $dbh->{csv_readonly_attrs} = {};
+
+    $dbh->{csv_meta} = "csv_tables";
+
+    return $dbh->SUPER::init_valid_attributes ();
+    } # init_valid_attributes
 
 # --- STATEMENT ----------------------------------------------------------------
 
@@ -153,15 +173,19 @@ sub FETCH
 package DBD::CSV::Statement;
 
 use strict;
+use DBD::File;
 use Carp;
 
 @DBD::CSV::Statement::ISA = qw(DBD::File::Statement);
 
-sub open_table
-{
+# open_table (0 is used up to and including DBI-1.1611
+# Later versions use open_file (see DBD::CSV::Table)
+
+$DBD::File::VERSION <= 0.38 and *open_table = sub {
     my ($self, $data, $table, $createMode, $lockMode) = @_;
+
     my $dbh    = $data->{Database};
-    my $tables = $dbh->{csv_tables};
+    my $tables = $dbh->{f_meta};
        $tables->{$table} ||= {};
     my $meta   = $tables->{$table} || {};
     my $csv_in = $meta->{csv_in} || $dbh->{csv_csv_in};
@@ -173,7 +197,7 @@ sub open_table
 	    (my $attr = $key) =~ s/csv_//;
 	    $attr =~ m{^(?: eol | sep | quote | escape	# Handled below
 			  | tables | sql_parser_object	# Not for Text::CSV_XS
-			  | sponge_driver		# internal
+			  | sponge_driver | version	# internal
 			  )$}x and next;
 	    $opts{$attr} = $dbh->{$key};
 	    }
@@ -210,13 +234,13 @@ sub open_table
 	    for (@{$types}) {
 		$_ = $_
 		    ? $DBD::CSV::dr::CSV_TYPES[$_ + 6] || Text::CSV_XS::PV ()
-		    : Text::CSV_XS::PV();
+		    : Text::CSV_XS::PV ();
 		push @$t, $_;
 		}
 	    $tbl->{types} = $t;
 	    }
 	if ( !$createMode and
-	     !$self->{ignore_missing_table} and $self->command ne "DROP") {
+	     !$self->{ignore_missing_table} and $self->{command} ne "DROP") {
 	    my $array;
 	    my $skipRows = exists $meta->{skip_rows}
 		? $meta->{skip_rows}
@@ -234,7 +258,7 @@ sub open_table
 	    $tbl->{first_row_pos} = $tbl->{fh}->tell ();
 	    exists $meta->{col_names} and
 		$array = $tbl->{col_names} = $meta->{col_names};
-            if (!$tbl->{col_names} || !@{$tbl->{col_names}}) {
+	    if (!$tbl->{col_names} || !@{$tbl->{col_names}}) {
 		# No column names given; fetch first row and create default
 		# names.
 		my $ar = $tbl->{cached_row} = $tbl->fetch_row ($data);
@@ -246,47 +270,181 @@ sub open_table
 	    }
 	}
     $tbl;
-    } # open_table
+    }; # open_table
 
 package DBD::CSV::Table;
 
 use strict;
+use DBD::File;
 use Carp;
 
 @DBD::CSV::Table::ISA = qw(DBD::File::Table);
+
+sub init_table_meta
+{
+    my ($self, $dbh, $meta, $table) = @_;
+
+    $self->SUPER::init_table_meta ($dbh, $table, $meta);
+
+    my $csv_in = $meta->{csv_in} || $dbh->{csv_csv_in};
+    unless ($csv_in) {
+	my %opts = ( binary => 1 );
+
+	# Allow specific Text::CSV_XS options
+	foreach my $key (grep m/^csv_/ => keys %$dbh) {
+	    (my $attr = $key) =~ s/csv_//;
+	    $attr =~ m{^(?: eol | sep | quote | escape	# Handled below
+			  | tables | meta		# Not for Text::CSV_XS
+			  | sponge_driver | version	# internal
+			  )$}x and next;
+	    $opts{$attr} = $dbh->{$key};
+	    }
+	delete $opts{null} and
+	    $opts{blank_is_undef} = $opts{always_quote} = 1;
+
+	my $class = $meta->{csv_class} || $dbh->{csv_class} || "Text::CSV_XS";
+	my $eol   = $meta->{csv_eol}   || $dbh->{csv_eol}   || "\r\n";
+	$eol =~ m/^\A(?:[\r\n]|\r\n)\Z/ or $opts{eol} = $eol;
+	for ([ "sep",    ',' ],
+	     [ "quote",  '"' ],
+	     [ "escape", '"' ],
+	     ) {
+	    my ($attr, $def) = ($_->[0]."_char", $_->[1]);
+	    $opts{$attr} =
+		exists $meta->{$attr} ? $meta->{$attr} :
+		    exists $dbh->{"csv_$attr"} ? $dbh->{"csv_$attr"} : $def;
+	    }
+	$meta->{csv_in}  = $class->new (\%opts) or
+	    $class->error_diag;
+	$opts{eol} = $eol;
+	$meta->{csv_out} = $class->new (\%opts) or
+	    $class->error_diag;
+	}
+
+    exists $meta->{csv_skip_first_row} or
+	$meta->{csv_skip_first_row} = $dbh->{csv_skip_first_row};
+    } # init_table_meta
+
+my %compat_map = (
+    file  => "f_file",
+    class => "csv_class",
+    eof   => "csv_eof",
+    );
+
+sub get_table_meta_attr
+{
+    my ($class, $meta, $attrib) = @_;
+    defined $compat_map{$attrib} and
+        return $class->SUPER::get_table_meta_attr ($meta, $compat_map{$attrib});
+    return $class->SUPER::get_table_meta_attr ($meta, $attrib);
+    } # get_table_meta_attr
+
+sub set_table_meta_attr
+{
+    my ($class, $meta, $attrib, $value) = @_;
+    defined $compat_map{$attrib} and
+        return $class->SUPER::set_table_meta_attr ($meta, $compat_map{$attrib}, $value);
+    return $class->SUPER::set_table_meta_attr ($meta, $attrib, $value);
+    } # set_table_meta_attr
+
+$DBD::File::VERSION > 0.38 and *open_file = sub {
+    my ($self, $meta, $attrs, $flags) = @_;
+    $self->SUPER::open_file ($meta, $attrs, $flags);
+
+#   use DP; print STDERR DDumper { flags => $flags, meta => $meta, self => $self };
+
+    my $tbl = $meta;
+    if ($tbl && $tbl->{fh}) {
+	$attrs->{csv_csv_in}  = $meta->{csv_in};
+	$attrs->{csv_csv_out} = $meta->{csv_out};
+	if (my $types = $meta->{types}) {
+	    # XXX $meta->{types} is nowhere assigned and should better $meta->{csv_types}
+	    # The 'types' array contains DBI types, but we need types
+	    # suitable for Text::CSV_XS.
+	    my $t = [];
+	    for (@{$types}) {
+		$_ = $_
+		    ? $DBD::CSV::dr::CSV_TYPES[$_ + 6] || Text::CSV_XS::PV ()
+		    : Text::CSV_XS::PV ();
+		push @$t, $_;
+		}
+	    $tbl->{types} = $t;
+	    }
+	if (!$flags->{createMode}) {
+	    my $array;
+	    my $skipRows = defined $meta->{skip_rows}
+		? $meta->{skip_rows}
+		: defined $meta->{csv_skip_first_row}
+		    ? 1
+		    : exists $meta->{col_names} ? 0 : 1;
+	    defined $meta->{skip_rows} or
+		$meta->{skip_rows} = $skipRows;
+	    if ($skipRows--) {
+		$array = $attrs->{csv_csv_in}->getline ($tbl->{fh}) or
+		    croak "Missing first row";
+		unless ($meta->{raw_header}) {
+		    s/\W/_/g for @$array;
+		    }
+		$tbl->{col_names} = $array;
+		while ($skipRows--) {
+		    $tbl->{csv_csv_in}->getline ($tbl->{fh});
+		    }
+		}
+	    $tbl->{first_row_pos} = $tbl->{fh}->tell ();
+	    exists $meta->{col_names} and
+		$array = $tbl->{col_names} = $meta->{col_names};
+	    if (!$tbl->{col_names} || !@{$tbl->{col_names}}) {
+		# No column names given; fetch first row and create default
+		# names.
+		my $ar = $tbl->{cached_row} =
+		    $tbl->{csv_csv_in}->getline ($tbl->{fh});
+		$array = $tbl->{col_names};
+		push @$array, map { "col$_" } 0 .. $#$ar;
+		}
+	    my $i = 0;
+	    $tbl->{col_nums}{$_} = $i++ for @$array; # XXX not necessary for DBI > 1.611
+	    }
+	}
+    }; # open_file
 
 sub fetch_row
 {
     my ($self, $data) = @_;
 
+#   use DP; print STDERR DDumper [ keys %$self ];
     exists $self->{cached_row} and
 	return $self->{row} = delete $self->{cached_row};
+
+    my $tbl = $DBD::File::VERSION <= 0.38 ? $self : $self->{meta};
 
     my $csv = $self->{csv_csv_in} or
 	return do { $data->set_err ($DBI::stderr, "Fetch from undefined handle"); undef };
 
     my $fields;
-    eval { $fields = $csv->getline ($self->{fh}) };
+    eval { $fields = $csv->getline ($tbl->{fh}) };
     unless ($fields) {
 	$csv->eof and return;
 
 	my @diag = $csv->error_diag;
-	croak "Error $diag[0] while reading file $self->{file}: $diag[1]";
+	my $file = $DBD::File::VERSION <= 0.38 ? $self->{file} : $tbl->{f_fqfn};
+	croak "Error $diag[0] while reading file $file: $diag[1]";
 	}
-    @$fields < @{$self->{col_names}} and
-	push @$fields, (undef) x (@{$self->{col_names}} - @$fields);
+    @$fields < @{$tbl->{col_names}} and
+	push @$fields, (undef) x (@{$tbl->{col_names}} - @$fields);
     $self->{row} = (@$fields ? $fields : undef);
     } # fetch_row
 
 sub push_row
 {
     my ($self, $data, $fields) = @_;
+    my $tbl = $DBD::File::VERSION <= 0.38 ? $self : $self->{meta};
     my $csv = $self->{csv_csv_out};
-    my $fh  = $self->{fh};
+    my $fh  = $tbl->{fh};
 
     unless ($csv->print ($fh, $fields)) {
 	my @diag = $csv->error_diag;
-	croak "Error $diag[0] while writing file $self->{file}: $diag[1]";
+	my $file = $DBD::File::VERSION <= 0.38 ? $self->{file} : $tbl->{f_fqfn};
+	croak "Error $diag[0] while writing file $file: $diag[1]";
 	}
     1;
     } # push_row
@@ -305,19 +463,19 @@ DBD::CSV - DBI driver for CSV files
     use DBI;
     # See "Creating database handle" below
     $dbh = DBI->connect ("dbi:CSV:") or
-        die "Cannot connect: $DBI::errstr";
+	die "Cannot connect: $DBI::errstr";
 
     # Simple statements
-    $dbh->do ("CREATE TABLE a (id INTEGER, name CHAR(10))") or
-        die "Cannot prepare: " . $dbh->errstr ();
+    $dbh->do ("CREATE TABLE a (id INTEGER, name CHAR (10))") or
+	die "Cannot prepare: " . $dbh->errstr ();
 
     # Selecting
     $dbh->{RaiseError} = 1;
     my $sth = $dbh->prepare ("select * from foo");
     $sth->execute;
     while (my @row = $sth->fetchrow_array) {
-        print "id: $row[0], name: $row[1]\n";
-        }
+	print "id: $row[0], name: $row[1]\n";
+	}
 
     # Updates
     my $sth = $dbh->prepare ("UPDATE a SET name = ? WHERE id = ?");
@@ -369,6 +527,11 @@ it effectively requires DBI version 1.611 or newer.
 A simple SQL engine. This module defines all of the SQL syntax for
 DBD::CSV, new SQL support is added with each release so you should
 look for updates to SQL::Statement regularly.
+
+It is possible to run C<DBD::CSV> without this module if you define
+the environment variable C<$DBI_SQL_NANO> to 1. This will reduce the
+SQL support a lot though. See L<DBI::SQL::Nano> for more details. Note
+that the test suite does not test in this mode!
 
 =item Text::CSV_XS
 
@@ -432,8 +595,8 @@ Thus this command reads
 
     use DBI;
     my $dbh = DBI->connect ("dbi:CSV:", "", "", {
-        f_dir => "/home/user/folder",
-        });
+	f_dir => "/home/user/folder",
+	});
 
 The directory tells the driver where it should create or open tables (a.k.a.
 files). It defaults to the current directory, so the following are equivalent:
@@ -446,30 +609,30 @@ We were told, that VMS might - for whatever reason - require:
 
     $dbh = DBI->connect ("dbi:CSV:f_dir=");
 
-The prefered way of passing the arguments is by driver attributes:
+The preferred way of passing the arguments is by driver attributes:
 
     # specify most possible flags via driver flags
     $dbh = DBI->connect ("dbi:CSV:", undef, undef, {
-        f_schema         => undef,
-        f_dir            => "data",
-        f_ext            => ".csv/r",
-        f_lock           => 2,
-        f_encoding       => 'utf8',
+	f_schema         => undef,
+	f_dir            => "data",
+	f_ext            => ".csv/r",
+	f_lock           => 2,
+	f_encoding       => "utf8",
 
-        csv_eol          => "\r\n",
-        csv_sep_char     => ",",
-        csv_quote_char   => '"',
-        csv_escape_char  => '"',
-        csv_class        => "Text::CSV_XS",
-        csv_null         => 1,
-        csv_tables       => {
-            info => { file => "info.csv" }
-            },
+	csv_eol          => "\r\n",
+	csv_sep_char     => ",",
+	csv_quote_char   => '"',
+	csv_escape_char  => '"',
+	csv_class        => "Text::CSV_XS",
+	csv_null         => 1,
+	csv_tables       => {
+	    info => { file => "info.csv" }
+	    },
 
-        RaiseError       => 1,
-        PrintError       => 1,
-        FetchHashKeyName => "NAME_lc",
-        }) or die $DBI::errstr;
+	RaiseError       => 1,
+	PrintError       => 1,
+	FetchHashKeyName => "NAME_lc",
+	}) or die $DBI::errstr;
 
 but you may set these attributes in the DSN as well, separated by semicolons.
 Pay attention to the semi-colon for C<csv_sep_char> (as seen in many CSV
@@ -477,12 +640,12 @@ exports from MS Excel) is being escaped in below example, as is would
 otherwise be seen as attribute separator:
 
     $dbh = DBI->connect (
-        "dbi:CSV:f_dir=$ENV{HOME}/csvdb;f_ext=.csv;f_lock=2;" .
-        "f_encoding=utf8;csv_eol=\n;csv_sep_char=\\;;" .
-        "csv_quote_char=\";csv_escape_char=\\;csv_class=Text::CSV_XS;" .
-        "csv_null=1") or die $DBI::errstr;
+	"dbi:CSV:f_dir=$ENV{HOME}/csvdb;f_ext=.csv;f_lock=2;" .
+	"f_encoding=utf8;csv_eol=\n;csv_sep_char=\\;;" .
+	"csv_quote_char=\";csv_escape_char=\\;csv_class=Text::CSV_XS;" .
+	"csv_null=1") or die $DBI::errstr;
 
-Using attributes in the DNS is easier to use when the DNS is derived from an
+Using attributes in the DSN is easier to use when the DSN is derived from an
 outside source (environment variable, database entry, or configure file),
 whereas using all entries in the attribute hash is easier to read and to
 maintain.
@@ -491,11 +654,11 @@ maintain.
 
 You can create and drop tables with commands like the following:
 
-    $dbh->do ("CREATE TABLE $table (id INTEGER, name CHAR(64))");
+    $dbh->do ("CREATE TABLE $table (id INTEGER, name CHAR (64))");
     $dbh->do ("DROP TABLE $table");
 
 Note that currently only the column names will be stored and no other data.
-Thus all other information including column type (INTEGER or CHAR(x), for
+Thus all other information including column type (INTEGER or CHAR (x), for
 example), column attributes (NOT NULL, PRIMARY KEY, ...) will silently be
 discarded. This may change in a later release.
 
@@ -507,7 +670,7 @@ Table names cannot be arbitrary, due to restrictions of the SQL syntax.
 I recommend that table names are valid SQL identifiers: The first
 character is alphabetic, followed by an arbitrary number of alphanumeric
 characters. If you want to use other files, the file names must start
-with '/', './' or '../' and they must not contain white space.
+with "/", "./" or "../" and they must not contain white space.
 
 =head2 Inserting, fetching and modifying data
 
@@ -515,15 +678,15 @@ The following examples insert some data in a table and fetch it back:
 First all data in the string:
 
     $dbh->do ("INSERT INTO $table VALUES (1, ".
-               $dbh->quote ("foobar") . ")");
+	       $dbh->quote ("foobar") . ")");
 
-Note the use of the quote method for escaping the word 'foobar'. Any
-string must be escaped, even if it doesn't contain binary data.
+Note the use of the quote method for escaping the word "foobar". Any
+string must be escaped, even if it does not contain binary data.
 
 Next an example using parameters:
 
     $dbh->do ("INSERT INTO $table VALUES (?, ?)", undef, 2,
-              "It's a string!");
+	      "It's a string!");
 
 Note that you don't need to use the quote method here, this is done
 automatically for you. This version is particularly well designed for
@@ -539,22 +702,22 @@ To retrieve data, you can use the following:
     my $sth   = $dbh->prepare ($query);
     $sth->execute ();
     while (my $row = $sth->fetchrow_hashref) {
-        print "Found result row: id = ", $row->{id},
-              ", name = ", $row->{name};
-        }
+	print "Found result row: id = ", $row->{id},
+	      ", name = ", $row->{name};
+	}
     $sth->finish ();
 
 Again, column binding works: The same example again.
 
     my $sth = $dbh->prepare (qq;
-        SELECT * FROM $table WHERE id > 1 ORDER BY id;
-        ;);
+	SELECT * FROM $table WHERE id > 1 ORDER BY id;
+	;);
     $sth->execute;
     my ($id, $name);
     $sth->bind_columns (undef, \$id, \$name);
     while ($sth->fetch) {
-        print "Found result row: id = $id, name = $name\n";
-        }
+	print "Found result row: id = $id, name = $name\n";
+	}
     $sth->finish;
 
 Of course you can even use input parameters. Here's the same example
@@ -563,12 +726,12 @@ for the third time:
     my $sth = $dbh->prepare ("SELECT * FROM $table WHERE id = ?");
     $sth->bind_columns (undef, \$id, \$name);
     for (my $i = 1; $i <= 2; $i++) {
-        $sth->execute ($id);
-        if ($sth->fetch) {
-            print "Found result row: id = $id, name = $name\n";
-            }
-        $sth->finish;
-        }
+	$sth->execute ($id);
+	if ($sth->fetch) {
+	    print "Found result row: id = $id, name = $name\n";
+	    }
+	$sth->finish;
+	}
 
 See L<DBI> for details on these methods. See L<SQL::Statement> for
 details on the WHERE clause.
@@ -587,15 +750,15 @@ In the above examples we have never cared about return codes. Of course,
 this cannot be recommended. Instead we should have written (for example):
 
     my $sth = $dbh->prepare ("SELECT * FROM $table WHERE id = ?") or
-        die "prepare: " . $dbh->errstr ();
+	die "prepare: " . $dbh->errstr ();
     $sth->bind_columns (undef, \$id, \$name) or
-        die "bind_columns: " . $dbh->errstr ();
+	die "bind_columns: " . $dbh->errstr ();
     for (my $i = 1; $i <= 2; $i++) {
-        $sth->execute ($id) or
-            die "execute: " . $dbh->errstr ();
-        $sth->fetch and
-            print "Found result row: id = $id, name = $name\n";
-        }
+	$sth->execute ($id) or
+	    die "execute: " . $dbh->errstr ();
+	$sth->fetch and
+	    print "Found result row: id = $id, name = $name\n";
+	}
     $sth->finish ($id) or die "finish: " . $dbh->errstr ();
 
 Obviously this is tedious. Fortunately we have DBI's I<RaiseError>
@@ -604,15 +767,15 @@ attribute:
     $dbh->{RaiseError} = 1;
     $@ = "";
     eval {
-        my $sth = $dbh->prepare ("SELECT * FROM $table WHERE id = ?");
-        $sth->bind_columns (undef, \$id, \$name);
-        for (my $i = 1; $i <= 2; $i++) {
-            $sth->execute ($id);
-            $sth->fetch and
-                print "Found result row: id = $id, name = $name\n";
-            }
-        $sth->finish ($id);
-        };
+	my $sth = $dbh->prepare ("SELECT * FROM $table WHERE id = ?");
+	$sth->bind_columns (undef, \$id, \$name);
+	for (my $i = 1; $i <= 2; $i++) {
+	    $sth->execute ($id);
+	    $sth->fetch and
+		print "Found result row: id = $id, name = $name\n";
+	    }
+	$sth->finish ($id);
+	};
     $@ and die "SQL database error: $@";
 
 This is not only shorter, it even works when using DBI methods within
@@ -666,7 +829,7 @@ Valid after C<$sth-E<gt>execute>; undef for Non-Select statements.
 =item NULLABLE
 
 Not really working. Always returns an array ref of one's, as DBD::CSV
-doesn't verify input data. Valid after C<$sth-E<gt>execute>; undef for
+does not verify input data. Valid after C<$sth-E<gt>execute>; undef for
 non-Select statements.
 
 =back
@@ -697,14 +860,14 @@ This attribute is used for setting the file extension.
 
 =item f_schema
 
-This attribute allows you to set the database schema name. The default
-is to use the owner of C<f_dir>. C<undef> is allowed, but not in the DSN part.
+This attribute allows you to set the database schema name. The default is
+to use the owner of C<f_dir>. C<undef> is allowed, but not in the DSN part.
 
     my $dbh = DBI->connect ("dbi:CSV:", "", "", {
-        f_schema => undef,
-        f_dir    => "data",
-        f_ext    => ".csv/r",
-        }) or die $DBI::errstr;
+	f_schema => undef,
+	f_dir    => "data",
+	f_ext    => ".csv/r",
+	}) or die $DBI::errstr;
 
 =item f_encoding
 
@@ -881,15 +1044,15 @@ There simplest way is:
 
     use DBI;
     my $dbh = DBI->connect ("dbi:CSV:", undef, undef, {
-        f_dir           => "/etc",
-        csv_sep_char    => ":",
-        csv_quote_char  => undef,
-        csv_escape_char => undef,
-        });
+	f_dir           => "/etc",
+	csv_sep_char    => ":",
+	csv_quote_char  => undef,
+	csv_escape_char => undef,
+	});
     $dbh->{csv_tables}{passwd} = {
-        col_names => [qw( login password uid gid realname
-                          directory shell )];
-        };
+	col_names => [qw( login password uid gid realname
+			  directory shell )];
+	};
     $sth = $dbh->prepare ("SELECT * FROM passwd");
 
 Another possibility where you leave all the defaults as they are and
@@ -898,14 +1061,14 @@ overwrite them on a per table base:
     require DBI;
     my $dbh = DBI->connect ("dbi:CSV:");
     $dbh->{csv_tables}{passwd} = {
-        eol         => "\n",
-        sep_char    => ":",
-        quote_char  => undef,
-        escape_char => undef,
-        file        => "/etc/passwd",
-        col_names   => [qw( login password uid gid
-                            realname directory shell )],
-        };
+	eol         => "\n",
+	sep_char    => ":",
+	quote_char  => undef,
+	escape_char => undef,
+	file        => "/etc/passwd",
+	col_names   => [qw( login password uid gid
+			    realname directory shell )],
+	};
     $sth = $dbh->prepare ("SELECT * FROM passwd");
 
 =head2 Driver private methods
@@ -916,10 +1079,10 @@ These methods are inherited from DBD::File:
 
 =item data_sources
 
-The C<data_sources> method returns a list of subdirectories of the current
+The C<data_sources> method returns a list of sub-directories of the current
 directory in the form "dbi:CSV:directory=$dirname".
 
-If you want to read the subdirectories of another directory, use
+If you want to read the sub-directories of another directory, use
 
     my $drh  = DBI->install_driver ("CSV");
     my @list = $drh->data_sources (f_dir => "/usr/local/csv_data");
@@ -961,12 +1124,12 @@ Aim for a full 100% code coverage
 
  - eol      Make tests for different record separators.
  - csv_xs   Test with a variety of combinations for
-            sep_char, quote_char, and escape_char testing
+	    sep_char, quote_char, and escape_char testing
  - quoting  $dbh->do ("drop table $_") for DBI-tables ();
  - errors   Make sure that all documented exceptions are tested.
-            . write to write-protected file
-            . read from badly formatted csv
-            . pass bad arguments to csv parser while fetching
+	    . write to write-protected file
+	    . read from badly formatted csv
+	    . pass bad arguments to csv parser while fetching
 
 Add tests that specifically test DBD::File functionality where
 that is useful.
@@ -1001,7 +1164,7 @@ Make more real-life examples from the docs in examples/
 
 =head1 SEE ALSO
 
-L<DBI>, L<Text::CSV_XS>, L<SQL::Statement>
+L<DBI>, L<Text::CSV_XS>, L<SQL::Statement>, L<DBI::SQL::Nano>
 
 For help on the use of DBD::CSV, see the DBI users mailing list:
 

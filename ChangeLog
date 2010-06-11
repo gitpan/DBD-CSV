@@ -1,3 +1,8 @@
+2010-05-30  0.30  H.Merijn Brand
+
+    * Prepare for DBD::File-0.39 (DBI-1.612+)
+      Should still work with older DBI versions
+
 2010-05-03  0.29  H.Merijn Brand
 
     * Fix git URL in META.yml
