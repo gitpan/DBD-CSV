@@ -34,7 +34,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.29_03";
+$VERSION  = "0.30";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
@@ -134,8 +134,22 @@ sub init_valid_attributes
 {
     my $dbh = shift;
 
-    # $dbh->{csv_valid_attrs} = {};
-    # $dbh->{csv_readonly_attrs} = {};
+    my @xs_attr = qw(
+	allow_loose_escapes allow_loose_quotes allow_whitespace
+	always_quote auto_diag binary blank_is_undef empty_is_undef
+	eol escape_char keep_meta_info quote_char quote_null
+	quote_space sep_char types verbatim );
+
+    $dbh->{csv_xs_valid_attrs} = [ @xs_attr ];
+
+    $dbh->{csv_valid_attrs} = { map {("csv_$_" => 1 )} @xs_attr, qw(
+
+	class tables in csv_in out csv_out skip_first_row
+
+	null sep quote escape
+	)};
+
+    $dbh->{csv_readonly_attrs} = { };
 
     $dbh->{csv_meta} = "csv_tables";
 
@@ -219,7 +233,7 @@ $DBD::File::VERSION <= 0.38 and *open_table = sub {
     my $meta   = $tables->{$table} || {};
     my $csv_in = $meta->{csv_in} || $dbh->{csv_csv_in};
     unless ($csv_in) {
-	my %opts  = ( binary => 1 );
+	my %opts  = ( binary => 1, auto_diag => 1 );
 
 	# Allow specific Text::CSV_XS options
 	foreach my $key (grep m/^csv_/ => keys %$dbh) {
@@ -327,18 +341,14 @@ sub init_table_meta
 
     my $csv_in = $meta->{csv_in} || $dbh->{csv_csv_in};
     unless ($csv_in) {
-	my %opts = ( binary => 1 );
+	my %opts = ( binary => 1, auto_diag => 1 );
 
 	# Allow specific Text::CSV_XS options
-	foreach my $key (grep m/^csv_/ => keys %$dbh) {
-	    (my $attr = $key) =~ s/csv_//;
-	    $attr =~ m{^(?: eol | sep | quote | escape	# Handled below
-			  | tables | meta		# Not for Text::CSV_XS
-			  | sponge_driver | version	# internal
-			  )$}x and next;
-	    $opts{$attr} = $dbh->{$key};
+	foreach my $attr (@{$dbh->{csv_xs_valid_attrs}}) {
+	    $attr eq "eol" and next; # Handles below
+	    exists $dbh->{"csv_$attr"} and $opts{$attr} = $dbh->{"csv_$attr"};
 	    }
-	delete $opts{null} and
+	$dbh->{csv_null} || $meta->{csv_null} and
 	    $opts{blank_is_undef} = $opts{always_quote} = 1;
 
 	my $class = $meta->{csv_class};
@@ -386,8 +396,6 @@ sub set_table_meta_attr
 $DBD::File::VERSION > 0.38 and *open_file = sub {
     my ($self, $meta, $attrs, $flags) = @_;
     $self->SUPER::open_file ($meta, $attrs, $flags);
-
-#   use DP; print STDERR DDumper { flags => $flags, meta => $meta, self => $self };
 
     my $tbl = $meta;
     if ($tbl && $tbl->{fh}) {
@@ -447,7 +455,6 @@ sub fetch_row
 {
     my ($self, $data) = @_;
 
-#   use DP; print STDERR DDumper [ keys %$self ];
     exists $self->{cached_row} and
 	return $self->{row} = delete $self->{cached_row};
 
