@@ -2,7 +2,7 @@
 
 # Copyright (c) 2009-2010 H.Merijn Brand
 
-require 5.005003;
+require 5.008001;
 
 use strict;
 
@@ -32,11 +32,11 @@ my %wm = (
     AUTHOR       => "H.Merijn Brand <h.merijn\@xs4all.nl>",
     VERSION_FROM => "lib/DBD/CSV.pm",
     PREREQ_PM    => {
-	"DBI"            => 1.611,
+	"DBI"            => 1.613,
 	"Text::CSV_XS"   => 0.71,
-	"SQL::Statement" => 1.25,
+	"SQL::Statement" => 1.30,
 	"DBD::File"      => 0.38,
-	"Test::More"     => 0,
+	"Test::More"     => 0.90,
 	"Encode"         => 0,
 	"charnames"      => 0,
 	},
@@ -68,7 +68,10 @@ sub postamble
 	'cover test_cover:',
 	'	cover -test',
 	'',
-	'checkmeta:',
+	'spellcheck:',
+	'	pod-spell-check --aspell',
+	'',
+	'checkmeta:	spellcheck',
 	'	perl sandbox/genMETA.pl -c',
 	'',
 	'fixmeta:	distmeta',

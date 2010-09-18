@@ -34,7 +34,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.30";
+$VERSION  = "0.31";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
@@ -130,6 +130,8 @@ if ($DBD::File::VERSION <= 0.38) {
 	}; # csv_versions
     }
 
+my %csv_xs_attr;
+
 sub init_valid_attributes
 {
     my $dbh = shift;
@@ -139,6 +141,7 @@ sub init_valid_attributes
 	always_quote auto_diag binary blank_is_undef empty_is_undef
 	eol escape_char keep_meta_info quote_char quote_null
 	quote_space sep_char types verbatim );
+    @csv_xs_attr{@xs_attr} = ();
 
     $dbh->{csv_xs_valid_attrs} = [ @xs_attr ];
 
@@ -371,27 +374,25 @@ sub init_table_meta
 	}
     } # init_table_meta
 
-my %compat_map = (
-    file  => "f_file",
-    class => "csv_class",
-    eof   => "csv_eof",
-    );
+my %compat_map = map { $_ => "csv_$_" }
+    qw( class eof  eol quote_char sep_char escape_char );
 
-sub get_table_meta_attr
-{
-    my ($class, $meta, $attrib) = @_;
-    defined $compat_map{$attrib} and
-        return $class->SUPER::get_table_meta_attr ($meta, $compat_map{$attrib});
-    return $class->SUPER::get_table_meta_attr ($meta, $attrib);
-    } # get_table_meta_attr
+__PACKAGE__->register_compat_map (\%compat_map);
 
-sub set_table_meta_attr
+sub table_meta_attr_changed
 {
-    my ($class, $meta, $attrib, $value) = @_;
-    defined $compat_map{$attrib} and
-        return $class->SUPER::set_table_meta_attr ($meta, $compat_map{$attrib}, $value);
-    return $class->SUPER::set_table_meta_attr ($meta, $attrib, $value);
-    } # set_table_meta_attr
+    my ($class, $meta, $attr, $value) = @_;
+
+    (my $csv_attr = $attr) =~ s/^csv_//;
+    if (exists $csv_xs_attr{$csv_attr}) {
+	for ("csv_in", "csv_out") {
+	    exists $meta->{$_} && exists $meta->{$_}{$csv_attr} and
+		$meta->{$_}{$csv_attr} = $value;
+	    }
+	}
+
+    $class->SUPER::table_meta_attr_changed ($meta, $attr, $value);
+    } # table_meta_attr_changed
 
 $DBD::File::VERSION > 0.38 and *open_file = sub {
     my ($self, $meta, $attrs, $flags) = @_;
@@ -425,7 +426,7 @@ $DBD::File::VERSION > 0.38 and *open_file = sub {
 		$meta->{skip_rows} = $skipRows;
 	    if ($skipRows--) {
 		$array = $attrs->{csv_csv_in}->getline ($tbl->{fh}) or
-		    croak "Missing first row";
+		    croak "Missing first row due to ".$attrs->{csv_csv_in}->error_diag;
 		unless ($meta->{raw_header}) {
 		    s/\W/_/g for @$array;
 		    }
@@ -544,7 +545,7 @@ The only system dependent feature that DBD::File uses, is the C<flock ()>
 function. Thus the module should run (in theory) on any system with
 a working C<flock ()>, in particular on all Unix machines and on Windows
 NT. Under Windows 95 and MacOS the use of C<flock ()> is disabled, thus
-the module should still be usable,
+the module should still be usable.
 
 Unlike other DBI drivers, you don't need an external SQL engine or a
 running server. All you need are the following Perl modules, available
