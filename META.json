@@ -36,7 +36,7 @@
       "version" : "2.0",
       "url" : "https://metacpan.org/module/CPAN::Meta::Spec?#meta-spec"
       },
-   "version" : "0.32",
+   "version" : "0.33",
    "name" : "DBD-CSV",
    "license" : "perl",
    "build_requires" : {
@@ -44,7 +44,7 @@
       },
    "provides" : {
       "DBD::CSV" : {
-         "version" : "0.32",
+         "version" : "0.33",
          "file" : "lib/DBD/CSV.pm"
          }
       },
