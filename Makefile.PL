@@ -1,6 +1,6 @@
 # -*- perl -*-
 
-# Copyright (c) 2009-2010 H.Merijn Brand
+# Copyright (c) 2009-2011 H.Merijn Brand
 
 require 5.008001;
 
@@ -27,15 +27,15 @@ MSG
 use vars qw( $DBI_INC_DIR );
 
 my %wm = (
-    NAME         => "DBD::CSV",
+    NAME         => "DBD-CSV",
     ABSTRACT     => "DBI driver for CSV and similar structured files",
     AUTHOR       => "H.Merijn Brand <h.merijn\@xs4all.nl>",
     VERSION_FROM => "lib/DBD/CSV.pm",
     PREREQ_PM    => {
-	"DBI"            => 1.613,
+	"DBI"            => 1.614,
+	"DBD::File"      => 0.40,
 	"Text::CSV_XS"   => 0.71,
-	"SQL::Statement" => 1.30,
-	"DBD::File"      => 0.38,
+	"SQL::Statement" => 1.33,
 	"Test::More"     => 0.90,
 	"Encode"         => 0,
 	"charnames"      => 0,

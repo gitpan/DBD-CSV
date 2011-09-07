@@ -13,6 +13,7 @@ t/11_dsnlist.t
 t/20_createdrop.t
 t/30_insertfetch.t
 t/31_delete.t
+t/32_update.t
 t/40_numrows.t
 t/41_nulls.t
 t/42_bindparam.t
@@ -29,4 +30,5 @@ t/73_csv-case.t
 t/80_rt.t
 t/lib.pl
 examples/passwd.pl
-META.yml                                 Module meta-data (added by MakeMaker)
+META.yml                                 Module YAML meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)

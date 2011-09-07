@@ -1,4 +1,4 @@
-#!/pro/bin/perl
+#!/usr/bin/perl
 #
 #   DBD::CSV - A DBI driver for CSV and similar structured files
 #
@@ -6,18 +6,7 @@
 #
 #	H.Merijn Brand <h.m.brand@xs4all.nl>
 #
-#   The original author is Jochen Wiedmann.
-#   Then maintained by Jeff Zucker
-#
-#   Copyright (C) 2010 by H.Merijn Brand
-#   Copyright (C) 2004 by Jeff Zucker
-#   Copyright (C) 1998 by Jochen Wiedmann
-#
-#   All rights reserved.
-#
-#   You may distribute this module under the terms of either the GNU
-#   General Public License or the Artistic License, as specified in
-#   the Perl README file.
+#   See for full acknowledgements the last two pod sections in this file
 
 require 5.005003;
 use strict;
@@ -34,7 +23,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.31";
+$VERSION  = "0.32";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
@@ -199,18 +188,18 @@ $DBD::File::VERSION <= 0.38 and *FETCH = sub {
     @colnames = map { $_->{name} || $_->{value} } @coldefs;
 
     # dangerous: this accesses the table_defs information from last CREATE TABLE statement
-    $attr eq "TYPE"      and
-	return [ map { $struct->{table_defs}{columns}{$_}{data_type}   || "CHAR" }
+    $attr eq "TYPE"      and	# 12 = VARCHAR, TYPE should be numeric
+	return [ map { $struct->{table_defs}{columns}{$_}{data_type}   || 12 }
 		    @colnames ];
 
     $attr eq "PRECISION" and
-	return [ map { $struct->{table_defs}{columns}{$_}{data_length} || 0 }
+	return [ map { $struct->{table_defs}{columns}{$_}{data_length} ||  0 }
 		    @colnames ];
 
     $attr eq "NULLABLE"  and
 	return [ map { ( grep m/^NOT NULL$/ =>
-		    @{ $struct->{table_defs}{columns}{$_}{constraints} || [] } )
-		       ? 0 : 1 }
+		    @{ $struct->{table_defs}{columns}{$_}{constraints} || [] }
+		       ) ? 0 : 1 }
 		    @colnames ];
 
     return $sth->SUPER::FETCH ($attr);
@@ -1233,7 +1222,7 @@ Previous maintainer was Jeff Zucker
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009-2010 by H.Merijn Brand
+Copyright (C) 2009-2011 by H.Merijn Brand
 Copyright (C) 2004-2009 by Jeff Zucker
 Copyright (C) 1998-2004 by Jochen Wiedmann
 
