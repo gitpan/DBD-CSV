@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                    DBD-CSV
-version:                 0.33
+version:                 0.34
 abstract:                DBI driver for CSV files
 license:                 perl
 author:
@@ -13,7 +13,7 @@ distribution_type:       module
 provides:
     DBD::CSV:
         file:            lib/DBD/CSV.pm
-        version:         0.33
+        version:         0.34
 requires:
     perl:                5.008001
     DBI:                 1.614
@@ -31,9 +31,9 @@ test_requires:
     Cwd:                 0
     charnames:           0
 recommends:
-    perl:                5.014001
-    DBI:                 1.616
-    Text::CSV_XS:        0.83
+    perl:                5.014002
+    DBI:                 1.620
+    Text::CSV_XS:        0.88
     Test::More:          0.98
 installdirs:             site
 resources:
