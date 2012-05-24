@@ -23,7 +23,7 @@ use vars qw( @ISA $VERSION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.34";
+$VERSION  = "0.35";
 
 $err      = 0;		# holds error code   for DBI::err
 $errstr   = "";		# holds error string for DBI::errstr
@@ -545,17 +545,20 @@ from any CPAN mirror, for example
 =over 4
 
 =item DBI
+X<DBI>
 
 The DBI (Database independent interface for Perl), version 1.00 or
 a later release
 
 =item DBD::File
+X<DBD::File>
 
 This is the base class for DBD::CSV, and it is part of the DBI
 distribution. As DBD::CSV requires version 0.38 or newer for DBD::File
 it effectively requires DBI version 1.611 or newer.
 
 =item SQL::Statement
+X<SQL::Statement>
 
 A simple SQL engine. This module defines all of the SQL syntax for
 DBD::CSV, new SQL support is added with each release so you should
@@ -567,8 +570,9 @@ SQL support a lot though. See L<DBI::SQL::Nano> for more details. Note
 that the test suite does not test in this mode!
 
 =item Text::CSV_XS
+X<Text::CSV_XS>
 
-This module is used for writing rows to or reading rows from CSV files.
+This module is used to read and write rows in a CSV file.
 
 =back
 
@@ -609,12 +613,14 @@ on installing in your own directories. L<ExtUtils::MakeMaker>.
 
 =head2 Supported SQL Syntax
 
-All SQL processing for DBD::CSV is done by the L<SQL::Statement> module.
+All SQL processing for DBD::CSV is done by SQL::Statement. See
+L<SQL::Statement> for more specific information about its feature set.
 Features include joins, aliases, built-in and user-defined functions,
 and more.  See L<SQL::Statement::Syntax> for a description of the SQL
 syntax supported in DBD::CSV.
 
-Table names are case insensitive unless quoted.
+Table- and column-names are case insensitive unless quoted. Column names
+will be sanitized unless L</raw_header> is true;
 
 =head1 Using DBD::CSV with DBI
 
@@ -680,7 +686,7 @@ otherwise be seen as attribute separator:
 
 Using attributes in the DSN is easier to use when the DSN is derived from an
 outside source (environment variable, database entry, or configure file),
-whereas using all entries in the attribute hash is easier to read and to
+whereas specifying entries in the attribute hash is easier to read and to
 maintain.
 
 =head2 Creating and dropping tables
@@ -708,7 +714,7 @@ with "/", "./" or "../" and they must not contain white space.
 =head2 Inserting, fetching and modifying data
 
 The following examples insert some data in a table and fetch it back:
-First all data in the string:
+First, an example where the column data is concatenated in the SQL string:
 
     $dbh->do ("INSERT INTO $table VALUES (1, ".
 	       $dbh->quote ("foobar") . ")");
@@ -716,18 +722,18 @@ First all data in the string:
 Note the use of the quote method for escaping the word "foobar". Any
 string must be escaped, even if it does not contain binary data.
 
-Next an example using parameters:
+Next, an example using parameters:
 
     $dbh->do ("INSERT INTO $table VALUES (?, ?)", undef, 2,
 	      "It's a string!");
 
-Note that you don't need to use the quote method here, this is done
-automatically for you. This version is particularly well designed for
+Note that you don't need to quote column data passed as parameters.
+This version is particularly well designed for
 loops. Whenever performance is an issue, I recommend using this method.
 
 You might wonder about the C<undef>. Don't wonder, just take it as it
-is. :-) It's an attribute argument that I have never ever used and
-will be parsed to the prepare method as a second argument.
+is. :-) It's an attribute argument that I have never used and will be
+passed to the prepare method as the second argument.
 
 To retrieve data, you can use the following:
 
@@ -779,8 +785,9 @@ Likewise you use the DELETE statement for removing rows:
 
 =head2 Error handling
 
-In the above examples we have never cared about return codes. Of course,
-this cannot be recommended. Instead we should have written (for example):
+In the above examples we have never cared about return codes. Of
+course, this is not recommended. Instead we should have written (for
+example):
 
     my $sth = $dbh->prepare ("SELECT * FROM $table WHERE id = ?") or
 	die "prepare: " . $dbh->errstr ();
@@ -836,30 +843,38 @@ The following DBI attributes are handled by DBD::File:
 =over 4
 
 =item AutoCommit
+X<AutoCommit>
 
 Always on
 
 =item ChopBlanks
+X<ChopBlanks>
 
 Works
 
 =item NUM_OF_FIELDS
+X<NUM_OF_FIELDS>
 
 Valid after C<$sth-E<gt>execute>
 
 =item NUM_OF_PARAMS
+X<NUM_OF_PARAMS>
 
 Valid after C<$sth-E<gt>prepare>
 
 =item NAME
+X<NAME>
 
 =item NAME_lc
+X<NAME_lc>
 
 =item NAME_uc
+X<NAME_uc>
 
 Valid after C<$sth-E<gt>execute>; undef for Non-Select statements.
 
 =item NULLABLE
+X<NULLABLE>
 
 Not really working. Always returns an array ref of one's, as DBD::CSV
 does not verify input data. Valid after C<$sth-E<gt>execute>; undef for
@@ -879,19 +894,24 @@ These attributes and methods are not supported:
 In addition to the DBI attributes, you can use the following dbh
 attributes:
 
+=head2 DBD::File attributes
+
 =over 4
 
 =item f_dir
+X<f_dir>
 
 This attribute is used for setting the directory where CSV files are
-opened. Usually you set it in the dbh, it defaults to the current
-directory ("."). However, it is overwritable in the statement handles.
+opened. Usually you set it in the dbh and it defaults to the current
+directory ("."). However, it may be overridden in statement handles.
 
 =item f_ext
+X<f_ext>
 
 This attribute is used for setting the file extension.
 
 =item f_schema
+X<f_schema>
 
 This attribute allows you to set the database schema name. The default is
 to use the owner of C<f_dir>. C<undef> is allowed, but not in the DSN part.
@@ -903,52 +923,69 @@ to use the owner of C<f_dir>. C<undef> is allowed, but not in the DSN part.
 	}) or die $DBI::errstr;
 
 =item f_encoding
+X<f_encoding>
 
-This attribute allows you to set the encoding of the data. With CSV, it is
-not possible to set (and remember) the encoding on a per-field basis, but
-DBD::File now allows to set the encoding of the underlying file. If this
-attribute is not set, or undef is passed, the file will be seen as binary.
+This attribute allows you to set the encoding of the data. With CSV, it is not
+possible to set (and remember) the encoding on a column basis, but DBD::File
+now allows the encoding to be set on the underlying file. If this attribute is
+not set, or undef is passed, the file will be seen as binary.
 
 =item f_lock
+X<f_lock>
 
-With this attribute, you can force locking mode (if locking is supported
-at all) for opening tables. By default, tables are opened with a shared
-lock for reading, and with an exclusive lock for writing. The supported
-modes are:
+With this attribute you can specify a locking mode to be used (if locking is
+supported at all) for opening tables. By default, tables are opened with a
+shared lock for reading, and with an exclusive lock for writing. The
+supported modes are:
 
 =over 2
 
 =item 0
+X<0>
 
 Force no locking at all.
 
 =item 1
+X<1>
 
 Only shared locks will be used.
 
 =item 2
+X<2>
 
 Only exclusive locks will be used.
 
 =back
 
+=back
+
 But see L<DBD::File/"KNOWN BUGS">.
 
+=head2 Text::CSV_XS specific attributes
+
+=over 4
+
 =item csv_eol
+X<csv_eol>
 
 =item csv_sep_char
+X<csv_sep_char>
 
 =item csv_quote_char
+X<csv_quote_char>
 
 =item csv_escape_char
+X<csv_escape_char>
 
 =item csv_class
+X<csv_class>
 
 =item csv_csv
+X<csv_csv>
 
 The attributes I<csv_eol>, I<csv_sep_char>, I<csv_quote_char> and
 I<csv_escape_char> are corresponding to the respective attributes of the
-Text::CSV_XS object. You want to set these attributes if you have unusual
+Text::CSV_XS object. You may want to set these attributes if you have unusual
 CSV files like F</etc/passwd> or MS Excel generated CSV files with a semicolon
 as separator. Defaults are "\015\012", ';', '"' and '"', respectively.
 
@@ -988,6 +1025,7 @@ Additionally you may overwrite these attributes on a per-table base in
 the I<csv_tables> attribute.
 
 =item csv_null
+X<csv_null>
 
 With this option set, all new statement handles will set C<always_quote>
 and C<blank_is_undef> in the CSV parser and writer, so it knows how to
@@ -999,16 +1037,18 @@ reset it with a false value. You can pass it to connect, or set it later:
   $dbh->{csv_null} = 1;
 
 =item csv_tables
+X<csv_tables>
 
 This hash ref is used for storing table dependent metadata. For any
 table it contains an element with the table name as key and another
 hash ref with the following attributes:
 
 =item csv_*
+X<csv_*>
 
 All other attributes that start with C<csv_> and are not described above
-will be passed to C<Text::CSV_XS> (without the C<csv_> prefix). these
-extra options are most likely to be only useful for reading (select)
+will be passed to C<Text::CSV_XS> (without the C<csv_> prefix). These
+extra options are only likely to be useful for reading (select)
 handles. Examples:
 
   $dbh->{csv_allow_whitespace}    = 1;
@@ -1017,33 +1057,46 @@ handles. Examples:
 
 See the C<Text::CSV_XS> documentation for the full list and the documentation.
 
+=back
+
+=head2 Driver specific attributes
+
 =over 4
 
 =item file
+X<file>
 
 The tables file name; defaults to
 
     "$dbh->{f_dir}/$table"
 
 =item eol
+X<eol>
 
 =item sep_char
+X<sep_char>
 
 =item quote_char
+X<quote_char>
 
 =item escape_char
+X<escape_char>
 
 =item class
+X<class>
 
 =item csv
+X<csv>
 
 These correspond to the attributes I<csv_eol>, I<csv_sep_char>,
 I<csv_quote_char>, I<csv_escape_char>, I<csv_class> and I<csv_csv>.
-The difference is that they work on a per-table base.
+The difference is that they work on a per-table basis.
 
 =item col_names
+X<col_names>
 
 =item skip_first_row
+X<skip_first_row>
 
 By default DBD::CSV assumes that column names are stored in the first row
 of the CSV file and sanitizes them (see C<raw_header> below). If this is
@@ -1056,23 +1109,24 @@ for you, count the number of columns and create column names like
 C<col0>, C<col1>, ...
 
 =item raw_header
+X<raw_header>
 
 Due to the SQL standard, field names cannot contain special characters
-like a dot (C<.>). Following the approach of mdb_tools, all these tokens
-are translated to an underscore (C<_>) when reading the first line of the
-CSV file, so all field names are `sanitized'. If you do not want this to
-happen, set C<raw_header> to a true value. DBD::CSV cannot guarantee that
-any part in the toolchain will work if field names have those characters,
+like a dot (C<.>) or a space (C< >) unless the column names are quoted.
+Following the approach of mdb_tools, all these tokens are translated to an
+underscore (C<_>) when reading the first line of the CSV file, so all field
+names are 'sanitized'. If you do not want this to happen, set C<raw_header>
+to a true value and the entries in the first line of the CSV data will be
+used verbatim for column headers and field names.  DBD::CSV cannot guarantee
+that any part in the toolchain will work if field names have those characters,
 and the chances are high that the SQL statements will fail.
-
-=back
 
 =back
 
 It's strongly recommended to check the attributes supported by
 L<DBD::File/Metadata>.
 
-Example: Suggest you want to use F</etc/passwd> as a CSV file. :-)
+Example: Suppose you want to use /etc/passwd as a CSV file. :-)
 There simplest way is:
 
     use DBI;
@@ -1089,7 +1143,7 @@ There simplest way is:
     $sth = $dbh->prepare ("SELECT * FROM passwd");
 
 Another possibility where you leave all the defaults as they are and
-overwrite them on a per table base:
+override them on a per table basis:
 
     require DBI;
     my $dbh = DBI->connect ("dbi:CSV:");
@@ -1111,6 +1165,7 @@ These methods are inherited from DBD::File:
 =over 4
 
 =item data_sources
+X<data_sources>
 
 The C<data_sources> method returns a list of sub-directories of the current
 directory in the form "dbi:CSV:directory=$dirname".
@@ -1121,6 +1176,7 @@ If you want to read the sub-directories of another directory, use
     my @list = $drh->data_sources (f_dir => "/usr/local/csv_data");
 
 =item list_tables
+X<list_tables>
 
 This method returns a list of file names inside $dbh->{directory}.
 Example:
@@ -1141,9 +1197,9 @@ L<Creating and dropping tables> above.
 =item *
 
 The module is using flock () internally. However, this function is not
-available on platforms. Using flock () is disabled on MacOS and Windows
-95: There's no locking at all (perhaps not so important on these
-operating systems, as they are for single users anyways).
+available on some platforms. Use of flock () is disabled on MacOS and
+Windows 95: There's no locking at all (perhaps not so important on
+these operating systems, as they are for single users anyways).
 
 =back
 
@@ -1152,6 +1208,7 @@ operating systems, as they are for single users anyways).
 =over 4
 
 =item Tests
+X<Tests>
 
 Aim for a full 100% code coverage
 
@@ -1168,28 +1225,34 @@ Add tests that specifically test DBD::File functionality where
 that is useful.
 
 =item RT
+X<RT>
 
 Attack all open DBD::CSV bugs in RT
 
 =item CPAN::Forum
+X<CPAN::Forum>
 
 Attack all items in http://www.cpanforum.com/dist/DBD-CSV
 
 =item Documentation
+X<Documentation>
 
 Expand on error-handling, and document all possible errors.
 Use Text::CSV_XS::error_diag () wherever possible.
 
 =item Debugging
+X<Debugging>
 
 Implement and document dbd_verbose.
 
 =item Data dictionary
+X<Data dictionary>
 
 Investigate the possibility to store the data dictionary in a file like
 .sys$columns that can store the field attributes (type, key, nullable).
 
 =item Examples
+X<Examples>
 
 Make more real-life examples from the docs in examples/
 
