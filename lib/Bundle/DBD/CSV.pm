@@ -21,15 +21,15 @@ Bundle::DBD::CSV - A bundle to install the DBD::CSV driver
 
 =head1 CONTENTS
 
-DBI 1.620
+DBI 1.622
 
-Text::CSV_XS 0.88
+Text::CSV_XS 0.91
 
 SQL::Statement 1.33
 
 DBD::File 0.40
 
-DBD::CSV 0.35
+DBD::CSV 0.36
 
 =head1 DESCRIPTION
 
