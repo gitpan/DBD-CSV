@@ -14,7 +14,7 @@
       "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec"
       },
    "generated_by" : "Author",
-   "version" : "0.37",
+   "version" : "0.38",
    "name" : "DBD-CSV",
    "x_installdirs" : "site",
    "author" : [
@@ -63,7 +63,7 @@
       },
    "provides" : {
       "DBD::CSV" : {
-         "version" : "0.37",
+         "version" : "0.38",
          "file" : "lib/DBD/CSV.pm"
          }
       },
