@@ -1,43 +1,41 @@
---- #YAML:1.0
-name:                    DBD-CSV
-version:                 0.36
-abstract:                DBI driver for CSV files
-license:                 perl
-author:
-    - Jochen Wiedmann
-    - Jeff Zucker
-    - H.Merijn Brand <h.m.brand@xs4all.nl>
-    - Jens Rehsack
-generated_by:            Author
-distribution_type:       module
-provides:
-    DBD::CSV:
-        file:            lib/DBD/CSV.pm
-        version:         0.36
-requires:
-    perl:                5.008001
-    DBI:                 1.614
-    DBD::File:           0.40
-    SQL::Statement:      1.33
-    Text::CSV_XS:        0.91
-configure_requires:
-    ExtUtils::MakeMaker: 0
-build_requires:
-    Config:              0
-test_requires:
-    Test::Harness:       0
-    Test::More:          0.90
-    Encode:              0
-    Cwd:                 0
-    charnames:           0
-recommends:
-    perl:                5.014002
-    DBI:                 1.622
-    Test::More:          0.98
-installdirs:             site
-resources:
-    license:             http://dev.perl.org/licenses/
-    repository:          http://repo.or.cz/w/DBD-CSV.git
-meta-spec:
-    version:             1.4
-    url:                 http://module-build.sourceforge.net/META-spec-v1.4.html
+--- 
+abstract: DBI driver for CSV files
+author: 
+  - Jochen Wiedmann
+  - Jeff Zucker
+  - H.Merijn Brand <h.m.brand@xs4all.nl>
+  - Jens Rehsack <rehsack@cpan.org>
+build_requires: 
+  Config: 0
+  Cwd: 0
+  Encode: 0
+  Test::Harness: 0
+  Test::More: '0.90'
+  charnames: 0
+configure_requires: 
+  ExtUtils::MakeMaker: 0
+dynamic_config: 1
+generated_by: Author
+license: perl
+meta-spec: 
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: '1.4'
+name: DBD-CSV
+provides: 
+  DBD::CSV: 
+    file: lib/DBD/CSV.pm
+    version: '0.37'
+recommends: 
+  Test::More: '0.98'
+  perl: '5.016002'
+requires: 
+  DBD::File: '0.41'
+  DBI: '1.623'
+  SQL::Statement: '1.402'
+  Text::CSV_XS: '0.94'
+  perl: '5.008001'
+resources: 
+  license: http://dev.perl.org/licenses/
+  repository: http://repo.or.cz/r/DBD-CSV.git
+version: '0.37'
+x_installdirs: site

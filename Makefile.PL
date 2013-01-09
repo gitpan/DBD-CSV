@@ -1,6 +1,6 @@
 # -*- perl -*-
 
-# Copyright (c) 2009-2012 H.Merijn Brand
+# Copyright (c) 2009-2013 H.Merijn Brand
 
 require 5.008001;
 
@@ -33,10 +33,10 @@ my %wm = (
     AUTHOR       => "H.Merijn Brand <h.merijn\@xs4all.nl>",
     VERSION_FROM => "lib/DBD/CSV.pm",
     PREREQ_PM    => {
-	"DBI"            => 1.614,
-	"DBD::File"      => 0.40,
-	"Text::CSV_XS"   => 0.91,
-	"SQL::Statement" => 1.33,
+	"DBI"            => 1.623,
+	"DBD::File"      => 0.41,
+	"Text::CSV_XS"   => 0.94,
+	"SQL::Statement" => 1.402,
 	"Test::More"     => 0.90,
 	"Encode"         => 0,
 	"charnames"      => 0,
