@@ -33,10 +33,10 @@ my %wm = (
     AUTHOR       => "H.Merijn Brand <h.merijn\@xs4all.nl>",
     VERSION_FROM => "lib/DBD/CSV.pm",
     PREREQ_PM    => {
-	"DBI"            => 1.623,
-	"DBD::File"      => 0.41,
-	"Text::CSV_XS"   => 0.94,
-	"SQL::Statement" => 1.402,
+	"DBI"            => 1.628,
+	"DBD::File"      => 0.42,
+	"Text::CSV_XS"   => 1.01,
+	"SQL::Statement" => 1.405,
 	"Test::More"     => 0.90,
 	"Encode"         => 0,
 	"charnames"      => 0,
@@ -64,6 +64,9 @@ sub postamble
 {
     my $min_vsn = ($] >= 5.010 && -d "xt" && ($ENV{AUTOMATED_TESTING} || 0) != 1)
 	? join "\n" =>
+	    'test ::',
+	    '	-@env DBI_SQL_NANO=1 TEST_FILES="t/[012367]*.t t/4[038]*.t t/5[05]*.t t/85*.t" make -e test_dynamic',
+	    '',
 	    'test ::',
 	    '	-@env TEST_FILES="xt/*.t" make -e test_dynamic',
 	    ''

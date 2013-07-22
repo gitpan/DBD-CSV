@@ -23,7 +23,7 @@ use vars qw( @ISA $VERSION $ATTRIBUTION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.38";
+$VERSION  = "0.39";
 $ATTRIBUTION = "DBD::CSV $DBD::CSV::VERSION by H.Merijn Brand";
 
 $err      = 0;		# holds error code   for DBI::err
@@ -518,6 +518,7 @@ The preferred way of passing the arguments is by driver attributes:
     $dbh = DBI->connect ("dbi:CSV:", undef, undef, {
 	f_schema         => undef,
 	f_dir            => "data",
+	f_dir_search     => [],
 	f_ext            => ".csv/r",
 	f_lock           => 2,
 	f_encoding       => "utf8",
@@ -529,7 +530,7 @@ The preferred way of passing the arguments is by driver attributes:
 	csv_class        => "Text::CSV_XS",
 	csv_null         => 1,
 	csv_tables       => {
-	    info => { file => "info.csv" }
+	    info => { f_file => "info.csv" }
 	    },
 
 	RaiseError       => 1,
@@ -769,6 +770,19 @@ This attribute is used for setting the directory where CSV files are
 opened. Usually you set it in the dbh and it defaults to the current
 directory ("."). However, it may be overridden in statement handles.
 
+=item f_dir_search
+X<f_dir_search>
+
+This attribute optionally defines a list of extra directories to search
+when opening existing tables. It should be an anonymous list or an array
+reference listing all folders where tables could be found.
+
+    my $dbh = DBI->connect ("dbi:CSV:", "", "", {
+	f_dir        => "data",
+	f_dir_search => [ "ref/data", "ref/old" ],
+	f_ext        => ".csv/r",
+	}) or die $DBI::errstr;
+
 =item f_ext
 X<f_ext>
 
@@ -825,6 +839,20 @@ Only exclusive locks will be used.
 
 But see L<DBD::File/"KNOWN BUGS">.
 
+=head2 DBD::CSV specific attributes
+
+=over 4
+
+=item csv_class
+
+The attribute I<csv_class> controls the CSV parsing engine. This defaults
+to C<Text::CSV_XS>, but C<Text::CSV> can be used in some cases, too.
+Please be aware that C<Text::CSV> does not care about any edge case as
+C<Text::CSV_XS> does and that C<Text::CSV> is probably about 100 times
+slower than C<Text::CSV_XS>.
+
+=back
+
 =head2 Text::CSV_XS specific attributes
 
 =over 4
@@ -841,17 +869,15 @@ X<csv_quote_char>
 =item csv_escape_char
 X<csv_escape_char>
 
-=item csv_class
-X<csv_class>
-
 =item csv_csv
 X<csv_csv>
 
 The attributes I<csv_eol>, I<csv_sep_char>, I<csv_quote_char> and
 I<csv_escape_char> are corresponding to the respective attributes of the
-Text::CSV_XS object. You may want to set these attributes if you have unusual
-CSV files like F</etc/passwd> or MS Excel generated CSV files with a semicolon
-as separator. Defaults are "\015\012", ';', '"' and '"', respectively.
+I<csv_class> (usually Text::CSV_CS) object. You may want to set these
+attributes if you have unusual CSV files like F</etc/passwd> or MS Excel
+generated CSV files with a semicolon as separator. Defaults are
+"\015\012", ';', '"' and '"', respectively.
 
 The I<csv_eol> attribute defines the end-of-line pattern, which is better
 known as a record separator pattern since it separates records.  The default
@@ -927,10 +953,10 @@ See the C<Text::CSV_XS> documentation for the full list and the documentation.
 
 =over 4
 
-=item file
-X<file>
+=item f_file
+X<f_file>
 
-The tables file name; defaults to
+The name of the file used for the table; defaults to
 
     "$dbh->{f_dir}/$table"
 
@@ -1016,7 +1042,7 @@ override them on a per table basis:
 	sep_char    => ":",
 	quote_char  => undef,
 	escape_char => undef,
-	file        => "/etc/passwd",
+	f_file      => "/etc/passwd",
 	col_names   => [qw( login password uid gid
 			    realname directory shell )],
 	};
@@ -1042,7 +1068,7 @@ If you want to read the sub-directories of another directory, use
 =item list_tables
 X<list_tables>
 
-This method returns a list of file names inside $dbh->{directory}.
+This method returns a list of file-names inside $dbh->{directory}.
 Example:
 
     my $dbh  = DBI->connect ("dbi:CSV:directory=/usr/local/csv_data");
