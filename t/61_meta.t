@@ -6,13 +6,10 @@ use version;
 
 use Test::More;
 use DBI qw(:sql_types);
-use Cwd qw(abs_path);
+use Cwd qw(getcwd abs_path);
 do "t/lib.pl";
 
-my $dbdfv = version->parse (DBD::File->VERSION);
-$dbdfv >= version->parse ("0.41") or
-    plan skip_all => "DBD::File 0.41 required. You only have $dbdfv";
-
+my $pwd = getcwd;
 my $cnt = join "" => <DATA>;
 my $tbl;
 
@@ -56,7 +53,11 @@ SKIP: {
     is_deeply ($rows, $expect, "all rows found - mem-io w col_names");
     }
 
-my $fn = abs_path (DbFile ($tbl));
+# abs_path () fails under MSWin32 for non-existing files!
+my $fn = DbFile ($tbl);
+   $fn = $^O eq "MSWin32"
+       ? File::Spec->catdir ($pwd, $fn)
+       : abs_path ($fn);
 open my $fh, ">", $fn or die "Can't open $fn for writing: $!";
 print $fh $cnt;
 close $fh;
