@@ -9,13 +9,12 @@ use warnings;
 
 use File::Spec;
 
-my $test_dir  = File::Spec->catdir (File::Spec->curdir (), "output");
-my $test_dsn  = $ENV{DBI_DSN}  || "DBI:CSV:f_dir=$test_dir";
+my $testname  = "output$$";
+my $base_dir  = File::Spec->rel2abs (File::Spec->curdir ());
+my $test_dir  = File::Spec->rel2abs ($testname);
+my $test_dsn  = $ENV{DBI_DSN}  || "DBI:CSV:f_dir=$testname";
 my $test_user = $ENV{DBI_USER} || "";
 my $test_pass = $ENV{DBI_PASS} || "";
-
-# Start each test clean
-unlink glob "$test_dir/*";
 
 sub COL_NULLABLE () { 1 }
 sub COL_KEY      () { 2 }
@@ -92,7 +91,18 @@ sub ListTables
     @tables;
     } # ListTables
 
--d "output"or mkdir "output", 0755;
+sub DbCleanup
+{
+    chdir $base_dir;
+    -d $testname or return;
+    chdir $testname or BAIL_OUT ("Cleanup failed");
+    unlink glob "*";
+    chdir $base_dir;
+    rmdir $testname;
+    } # DbCleanup
+
+mkdir $testname, 0755;
+END { DbCleanup (); }
 
 # This functions generates a list of possible DSN's aka
 # databases and returns a possible table name for a new
@@ -162,7 +172,7 @@ sub Connect
 
 sub DbDir
 {
-    @_ and $test_dir = File::Spec->catdir (File::Spec->curdir (), shift);
+    @_ and $test_dir = File::Spec->catdir ($base_dir, shift);
     $test_dir;
     } # DbDir
 

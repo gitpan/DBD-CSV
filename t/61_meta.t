@@ -6,10 +6,8 @@ use version;
 
 use Test::More;
 use DBI qw(:sql_types);
-use Cwd qw(getcwd abs_path);
 do "t/lib.pl";
 
-my $pwd = getcwd;
 my $cnt = join "" => <DATA>;
 my $tbl;
 
@@ -19,13 +17,14 @@ my $expect = [
     [ 3, "Beowulf", "CCEE00"	],
     ];
 
-SKIP: {
-    open my $data, "<", \$cnt;
-    my $dbh = Connect ();
+{   my $dbh = Connect ();
     ok ($tbl = FindNewTable ($dbh),		"find new test table");
+    }
 
-    skip "memory i/o currently unsupported by DBD::File", 1;
-
+if ($DBD::File::VERSION gt "0.42") {
+    note ("ScalarIO - no col_names");
+    my $dbh = Connect ();
+    open my $data, "<", \$cnt;
     $dbh->{csv_tables}->{data} = {
 	f_file    => $data,
 	skip_rows => 4,
@@ -36,11 +35,10 @@ SKIP: {
     is_deeply ($rows, $expect, "all rows found - mem-io w/o col_names");
     }
 
-SKIP: {
-    open my $data, "<", \$cnt;
+if ($DBD::File::VERSION gt "0.42") {
+    note ("ScalarIO - with col_names");
     my $dbh = Connect ();
-
-    skip "memory i/o currently unsupported by DBD::File", 1;
+    open my $data, "<", \$cnt;
 
     $dbh->{csv_tables}->{data} = {
 	f_file    => $data,
@@ -53,17 +51,12 @@ SKIP: {
     is_deeply ($rows, $expect, "all rows found - mem-io w col_names");
     }
 
-# abs_path () fails under MSWin32 for non-existing files!
-my $fn = DbFile ($tbl);
-   $fn = $^O eq "MSWin32"
-       ? File::Spec->catdir ($pwd, $fn)
-       : abs_path ($fn);
+my $fn = File::Spec->rel2abs (DbFile ($tbl));
 open my $fh, ">", $fn or die "Can't open $fn for writing: $!";
 print $fh $cnt;
 close $fh;
 
-END { defined $fn and unlink $fn; }
-
+note ("File handle - no col_names");
 {   open my $data, "<", $fn;
     my $dbh = Connect ();
     $dbh->{csv_tables}->{data} = {
@@ -78,6 +71,7 @@ END { defined $fn and unlink $fn; }
 	"column names - file-handle w/o col_names");
     }
 
+note ("File handle - with col_names");
 {   open my $data, "<", $fn;
     my $dbh = Connect ();
     $dbh->{csv_tables}->{data} = {
@@ -92,6 +86,7 @@ END { defined $fn and unlink $fn; }
     is_deeply ($sth->{NAME_lc}, [qw(foo bar baz)], "column names - file-handle w col_names");
     }
 
+note ("File name - no col_names");
 {   my $dbh = Connect ();
     $dbh->{csv_tables}->{data} = {
 	f_file    => $fn,
@@ -105,6 +100,7 @@ END { defined $fn and unlink $fn; }
 	"column names - file-name w/o col_names");
     }
 
+note ("File name - with col_names");
 {   my $dbh = Connect ({ RaiseError => 1 });
     $dbh->{csv_tables}->{data} = {
 	f_file    => $fn,
@@ -117,9 +113,15 @@ END { defined $fn and unlink $fn; }
     is_deeply ($rows, $expect, "all rows found - file-name w col_names" );
     is_deeply ($sth->{NAME_lc}, [qw(foo bar baz)],
 	"column names - file-name w col_names" );
+
+    # TODO: Next test will hang in open_tables ()
+    #  'Cannot obtain exclusive lock on .../output12660/testaa: Interrupted system call'
+    #ok ($dbh->do ("drop table data"), "Drop the table");
     }
 
-done_testing();
+unlink $fn;
+
+done_testing ();
 
 __END__
 id,name,color
