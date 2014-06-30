@@ -5,6 +5,13 @@ use warnings;
 
 use Test::More;
 use DBI qw(:sql_types);
+
+if ($ENV{DBI_SQL_NANO}) {
+    ok ($ENV{DBI_SQL_NANO}, "These tests are not suit for SQL::Nano");
+    done_testing ();
+    exit 0;
+    }
+
 do "t/lib.pl";
 
 my ($rt, %input, %desc);

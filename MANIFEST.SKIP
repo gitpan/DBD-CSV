@@ -1,5 +1,5 @@
 \.aspell\.local.pws
-\.dbi-svn
+\.dbi-git
 \bCVS\b
 ~$
 \.tgz$
@@ -17,4 +17,9 @@ tmp/
 ^xx
 META.yml
 valgrind.log
+tests.skip
 xt/
+t/basic/
+t/DBI/
+t/DBD/
+t/SQL/

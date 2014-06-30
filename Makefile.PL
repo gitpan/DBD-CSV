@@ -1,20 +1,41 @@
 # -*- perl -*-
 
-# Copyright (c) 2009-2013 H.Merijn Brand
+# Copyright (c) 2009-2014 H.Merijn Brand
 
 require 5.008001;
 
 use strict;
 
 use ExtUtils::MakeMaker;
+use File::Spec;
 
+eval { require DBI;      };
+if ($@) {
+    print <<"MSG";
+
+DBD::CSV requires DBI and it cannot be loaded:
+$@
+
+MSG
+    exit 1;
+    }
+if ($DBI::VERSION < 1.628) {
+    print <<"MSG";
+
+Trying to use DBD::CSV with DBI-$DBI::VERSION is heading for failure.
+DBD::CSV is relying on DBD::File, bundled in the DBI release and does
+require features not present in this version of DBI.
+
+MSG
+    exit 0;
+    }
 eval { require DBD::CSV; };
 if (!$@ && $DBD::CSV::VERSION < 0.1010) {
     print <<'MSG';
 
-WARNING! You seem to have installed a recent version of the DBD::CSV module.
+WARNING!  You seem to have installed a recent version of the DBD::CSV module.
 Note that the API (in particular attribute names) has changed, to conform to
-the DBI specifications. For example $dbh->{directory} has been renamed to
+the DBI specifications.  For example  $dbh->{directory}  has been renamed to
 $dbh->{f_dir} and $dbh->{eol}, $dbh->{quote_char}, ... are gone in favour of
 $dbh->{tables}{$table}{csv}, which is used for storing meta information. You
 might need to modify existing sources before doing a "make install". See the
@@ -22,15 +43,26 @@ README for details.
 
 MSG
     sleep 5;
-    };
+    }
 
 use vars qw( $DBI_INC_DIR );
 
+{   my $tmp_dir = File::Spec->tmpdir ();
+    my $default = $ENV{AUTOMATED_TESTING} ? "n" : "y";
+    if (prompt ("Enable the use of $tmp_dir for tests?", $default) =~ m/[Yy]/) {
+	unlink "tests.skip";
+	}
+    else {
+	open my $fh, ">", "tests.skip";
+	print $fh "tmpdir\n";
+	close $fh;
+	}
+    }
 my %wm = (
     NAME         => "DBD::CSV",
     DISTNAME     => "DBD-CSV",
     ABSTRACT     => "DBI driver for CSV and similar structured files",
-    AUTHOR       => "H.Merijn Brand <h.merijn\@xs4all.nl>",
+    AUTHOR       => "H.Merijn Brand <h.m.brand\@xs4all.nl>",
     VERSION_FROM => "lib/DBD/CSV.pm",
     PREREQ_PM    => {
 	"DBI"            => 1.628,
@@ -54,6 +86,26 @@ my %wm = (
     );
 $ExtUtils::MakeMaker::VERSION > 6.30 and $wm{LICENSE} = "perl";
 
+# Windows is case-insensitive! Do not remove lib.pl and tmp.csv
+$File::Path::VERSION > 2.06 and File::Path::remove_tree (glob "t/[bA-KM-SU-Z]*");
+
+eval "use DBI::Test::Conf ();";
+if ($@) {
+    warn "******\n",
+         "******\tDBI::Test is not installed.\n",
+         "******\tIt will be required in one of the upcoming releases.\n",
+         "******\n";
+    }
+else {
+    use lib "lib";
+
+    local $" = " ";
+    $wm{PREREQ_PM}{"DBI::Test"} = "0.001";
+    my @nt = DBI::Test::Conf->setup (CONTAINED_DBDS => [qw( CSV )]);
+    $wm{test} = { TESTS => join " " => (sort glob "t/*.t"), @nt };
+    $wm{clean}{FILES} .= " @nt";
+    }
+
 my $rv = WriteMakefile (%wm);
 
 1;
@@ -65,7 +117,7 @@ sub postamble
     my $min_vsn = ($] >= 5.010 && -d "xt" && ($ENV{AUTOMATED_TESTING} || 0) != 1)
 	? join "\n" =>
 	    'test ::',
-	    '	-@env DBI_SQL_NANO=1 TEST_FILES="t/[012367]*.t t/4[038]*.t t/5[05]*.t t/85*.t" make -e test_dynamic',
+	    '	-@env DBI_SQL_NANO=1 make -e test_dynamic TEST_FILES=t/[1-9]*.t',
 	    '',
 	    'test ::',
 	    '	-@env TEST_FILES="xt/*.t" make -e test_dynamic',
@@ -76,7 +128,7 @@ sub postamble
 	'	cover -test',
 	'',
 	'spellcheck:',
-	'	pod-spell-check --aspell',
+	'	pod-spell-check --aspell --ispell',
 	'',
 	'checkmeta:	spellcheck',
 	'	perl sandbox/genMETA.pl -c',

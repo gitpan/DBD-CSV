@@ -9,9 +9,11 @@ use Test::More;
 BEGIN { use_ok ("DBI") }
 do "t/lib.pl";
 
+defined &SQL_CHAR    or *SQL_CHAR    = sub {  1 };
 defined &SQL_VARCHAR or *SQL_VARCHAR = sub { 12 };
 defined &SQL_INTEGER or *SQL_INTEGER = sub {  4 };
 
+my $nano = $ENV{DBI_SQL_NANO};
 my @tbl_def = (
     [ "id",   "INTEGER",  4, &COL_KEY		],
     [ "name", "CHAR",    64, &COL_NULLABLE	],
@@ -34,16 +36,17 @@ is ($sth->{NAME_lc}[0], lc $tbl_def[0][0],	"NAME_lc");
 is ($sth->{NAME_uc}[1], uc $tbl_def[1][0],	"NAME_uc");
 is_deeply ($sth->{NAME_lc_hash},
     { map { ( lc $tbl_def[$_][0] => $_ ) } 0 .. $#tbl_def }, "NAME_lc_hash");
-# TODO tests
-#s ($sth->{TYPE}[0], &SQL_INTEGER,		"TYPE 1");
-#s ($sth->{TYPE}[1], &SQL_VARCHAR,		"TYPE 2");
-is ($sth->{PRECISION}[0],	0,		"PRECISION 1");
-is ($sth->{PRECISION}[1], 	64,		"PRECISION 2");
-is ($sth->{NULLABLE}[0],	0,		"NULLABLE 1");
-is ($sth->{NULLABLE}[1],	1,		"NULLABLE 2");
+if ($DBD::File::VERSION gt "0.42") {
+    is ($sth->{TYPE}[0], $nano ? &SQL_VARCHAR : &SQL_INTEGER,	"TYPE 1");
+    is ($sth->{TYPE}[1], $nano ? &SQL_VARCHAR : &SQL_CHAR,	"TYPE 2");
+    is ($sth->{PRECISION}[0],	0,		"PRECISION 1");
+    is ($sth->{PRECISION}[1], 	$nano ? 0 : 64,	"PRECISION 2");
+    is ($sth->{NULLABLE}[0],	$nano ? 1 : 0,	"NULLABLE 1");
+    is ($sth->{NULLABLE}[1],	1,		"NULLABLE 2");
+    }
 
 ok ($sth->finish,				"finish");
-#s ($sth->{NUM_OF_FIELDS}, 0,			"NUM_OF_FIELDS");
+#s ($sth->{NUM_OF_FIELDS},	0,		"NUM_OF_FIELDS");
 undef $sth;
 
 ok ($dbh->do ("drop table $tbl"),		"drop table");

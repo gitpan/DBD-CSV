@@ -23,7 +23,7 @@ use vars qw( @ISA $VERSION $ATTRIBUTION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.41";
+$VERSION  = "0.43";
 $ATTRIBUTION = "DBD::CSV $DBD::CSV::VERSION by H.Merijn Brand";
 
 $err      = 0;		# holds error code   for DBI::err
@@ -137,6 +137,22 @@ sub get_csv_versions
     $dvsn and $dtype .= " ($dvsn)";
     return sprintf "%s using %s", $dbh->{csv_version}, $dtype;
     } # get_csv_versions 
+
+sub get_info
+{
+    my ($dbh, $info_type) = @_;
+    require  DBD::CSV::GetInfo;
+    my $v = $DBD::CSV::GetInfo::info{int ($info_type)};
+    ref $v eq "CODE" and $v = $v->($dbh);
+    return $v;
+    } # get_info
+
+sub type_info_all
+{
+    my $dbh = shift;
+    require   DBD::CSV::TypeInfo;
+    return [@$DBD::CSV::TypeInfo::type_info_all];
+    } # type_info_all
 
 # --- STATEMENT ----------------------------------------------------------------
 
@@ -359,23 +375,24 @@ DBD::CSV - DBI driver for CSV files
 
     use DBI;
     # See "Creating database handle" below
-    $dbh = DBI->connect ("dbi:CSV:") or
-	die "Cannot connect: $DBI::errstr";
+    $dbh = DBI->connect ("dbi:CSV:", undef, undef, {
+        f_ext      => ".csv/r",
+        RaiseError => 1,
+        }) or die "Cannot connect: $DBI::errstr";
 
     # Simple statements
-    $dbh->do ("CREATE TABLE a (id INTEGER, name CHAR (10))") or
-	die "Cannot prepare: " . $dbh->errstr ();
+    $dbh->do ("CREATE TABLE foo (id INTEGER, name CHAR (10))");
 
     # Selecting
-    $dbh->{RaiseError} = 1;
     my $sth = $dbh->prepare ("select * from foo");
     $sth->execute;
-    while (my @row = $sth->fetchrow_array) {
-	print "id: $row[0], name: $row[1]\n";
+    $sth->bind_columns (\my ($id, $name));
+    while ($sth->fetch) {
+	print "id: $id, name: $ame\n";
 	}
 
     # Updates
-    my $sth = $dbh->prepare ("UPDATE a SET name = ? WHERE id = ?");
+    my $sth = $dbh->prepare ("UPDATE foo SET name = ? WHERE id = ?");
     $sth->execute ("DBI rocks!", 1);
     $sth->finish;
 
@@ -1177,7 +1194,7 @@ Previous maintainer was Jeff Zucker
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009-2013 by H.Merijn Brand
+Copyright (C) 2009-2014 by H.Merijn Brand
 Copyright (C) 2004-2009 by Jeff Zucker
 Copyright (C) 1998-2004 by Jochen Wiedmann
 
