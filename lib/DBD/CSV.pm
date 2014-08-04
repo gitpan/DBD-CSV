@@ -23,7 +23,7 @@ use vars qw( @ISA $VERSION $ATTRIBUTION $drh $err $errstr $sqlstate );
 
 @ISA =   qw( DBD::File );
 
-$VERSION  = "0.43";
+$VERSION  = "0.44";
 $ATTRIBUTION = "DBD::CSV $DBD::CSV::VERSION by H.Merijn Brand";
 
 $err      = 0;		# holds error code   for DBI::err
@@ -336,6 +336,8 @@ sub fetch_row
 	$csv->eof and return;
 
 	my @diag = _csv_diag ($csv);
+	$diag[0] == 2012 and return; # Also EOF (broken in Text::CSV_XS-1.10)
+
 	my $file = $tbl->{f_fqfn};
 	croak "Error $diag[0] while reading file $file: $diag[1] \@ line $diag[3] pos $diag[2]";
 	}
@@ -388,7 +390,7 @@ DBD::CSV - DBI driver for CSV files
     $sth->execute;
     $sth->bind_columns (\my ($id, $name));
     while ($sth->fetch) {
-	print "id: $id, name: $ame\n";
+	print "id: $id, name: $name\n";
 	}
 
     # Updates
@@ -896,12 +898,12 @@ I<csv_escape_char> are corresponding to the respective attributes of the
 I<csv_class> (usually Text::CSV_CS) object. You may want to set these
 attributes if you have unusual CSV files like F</etc/passwd> or MS Excel
 generated CSV files with a semicolon as separator. Defaults are
-"\015\012", ';', '"' and '"', respectively.
+C<\015\012>", C<,>, C<"> and C<">, respectively.
 
 The I<csv_eol> attribute defines the end-of-line pattern, which is better
 known as a record separator pattern since it separates records.  The default
-is windows-style end-of-lines "\015\012" for output (writing) and unset for
-input (reading), so if on unix you may want to set this to newline ("\n")
+is windows-style end-of-lines C<\015\012> for output (writing) and unset for
+input (reading), so if on unix you may want to set this to newline (C<\n>)
 like this:
 
   $dbh->{csv_eol} = "\n";
