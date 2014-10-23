@@ -16,8 +16,11 @@ if ($@) {
 DBD::CSV requires DBI and it cannot be loaded:
 $@
 
+Please be sure your toolchain picks up the dependency requirement and
+installs DBI before tests start
+
 MSG
-    exit 1;
+    sleep 10;
     }
 if ($DBI::VERSION < 1.628) {
     print <<"MSG";
@@ -26,8 +29,11 @@ Trying to use DBD::CSV with DBI-$DBI::VERSION is heading for failure.
 DBD::CSV is relying on DBD::File, bundled in the DBI release and does
 require features not present in this version of DBI.
 
+Please be sure your toolchain picks up the dependency requirement and
+installs DBI-1.628 or newer before tests start
+
 MSG
-    exit 0;
+    sleep 10;
     }
 eval { require DBD::CSV; };
 if (!$@ && $DBD::CSV::VERSION < 0.1010) {
@@ -91,10 +97,10 @@ $File::Path::VERSION > 2.06 and File::Path::remove_tree (glob "t/[bA-KM-SU-Z]*")
 
 eval "use DBI::Test::Conf ();";
 if ($@) {
-    warn "******\n",
-         "******\tDBI::Test is not installed.\n",
-         "******\tIt will be required in one of the upcoming releases.\n",
-         "******\n";
+#   warn "******\n",
+#        "******\tDBI::Test is not installed.\n",
+#        "******\tIt will be required in one of the upcoming releases.\n",
+#        "******\n";
     }
 else {
     use lib "lib";
